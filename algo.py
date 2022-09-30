@@ -2,15 +2,26 @@ import numpy as np
 from sklearn.model_selection import train_test_split
 
 """
+Example of usage:
 X_train, X_val, y_train, y_val = load_data()
 genalgo = GeneticAlgorithm(LogisticRegression, accuracy_score)
 genalgo.fit(X_train, y_train, X_val, y_val, select = 10)
-important = genalgo.return_features()
+important = genalgo.get_best_features()
 """
 
 class GeneticAlgorithm:
     """
     Genetic algorithm for features selection
+    initialization parameters:
+        model_: model that will be used to select features, must have fit and predict methods
+        score_: score function that will be used to estimate usefullness of features
+        asc_: indicates whether score function is increasing or decreasing with growth of model's predictive power
+    fit parameters:
+        Xt_: train data, must be given
+        yt_: answers for train data, must be given
+        Xv_: validation data, if not given, train data is split into train and validation data
+        yv_: answers for validation data, if not given, train answers are split into train and validation answers
+        split: if validation data or answers are not given, is used as train/validation split_rate; default is 0.75
     """
     def __init__(self, model_, score_, asc_ = True):
         self.model = model_
@@ -20,6 +31,8 @@ class GeneticAlgorithm:
 
     def fit(self, Xt_, yt_, Xv_ = None, yv_ = None, split = None, **kwargs):
         if Xv_ is None or yv_ is None:
+            if split is None:
+                split = 0.75
             self.X_train, self.X_val, self.y_train, self.y_val = train_test_split(Xt_, yt_, train_size = split)
         else:
             self.X_train = Xt_
