@@ -1,12 +1,12 @@
 import numpy as np
 from sklearn.model_selection import train_test_split
 
-'''
+"""
 X_train, X_val, y_train, y_val = load_data()
 genalgo = GeneticAlgorithm(LogisticRegression, accuracy_score)
 genalgo.fit(X_train, y_train, X_val, y_val, select = 10)
 important = genalgo.return_features()
-'''
+"""
 
 class GeneticAlgorithm:
     """
@@ -28,10 +28,33 @@ class GeneticAlgorithm:
             self.y_val = yv_
         self.n_features = self.X_train.shape[1]
         self.params = kwargs
-        # Ещё параметры?
         self.generate()
         self.accs = self.calc_accs(self.species)
-        
+        order = np.argsort(self.accs)
+        self.accs = self.accs[order]
+        self.species = self.species[order]
+        self.max_accs = [self.accs[-1]]
+        self.min_accs = [self.accs[0]]
+        self.avg_accs = [np.average(self.accs)]
+        if 'stop_abs' in self.params:
+            stop_abs = self.params['stop_abs']
+            while np.amax(self.accs) - np.amin(self.accs) > stop_abs:
+                self.breed()
+                self.selection()
+                self.max_accs.append(self.accs[-1])
+                self.min_accs.append(self.accs[0])
+                self.avg_accs.append(np.average(self.accs))
+        else:
+            if 'stop_ratio' in self.params:
+                stop_ratio = self.params['stop_ratio']
+            else:
+                stop_ratio = 0.01
+            while (np.amax(self.accs) - np.amin(self.accs)) / np.amax(self.accs) > stop_ratio:
+                self.breed()
+                self.selection()
+                self.max_accs.append(np.amax(self.accs))
+                self.min_accs.append(np.amin(self.accs))
+                self.avg_accs.append(np.average(self.accs))
 
 
     def generate(self):
@@ -62,33 +85,51 @@ class GeneticAlgorithm:
 
 
     def breed(self):
-
-        parents = np.random.choice(self.species.shape[0], size = self.species.shape[0] // self.alpha * 2, replace = False, p = accs / np.sum(accs))
-        dads = species[parents[0::2]]
-        moms = species[parents[1::2]]
-        bind = np.full(shape = (dads.shape[0], x_train.shape[1]), fill_value = False)
-        bind[np.arange(bind.shape[0])[:, None], dads] = True
-        binm = np.full(shape = (moms.shape[0], x_train.shape[1]), fill_value = False)
-        binm[np.arange(binm.shape[0])[:, None], moms] = True
-        same = bind * binm
-        diff = bind ^ binm
+        if 'child_rate' in self.params:
+            child_rate = self.params['child_rate']
+        else:
+            child_rate = 0.2
+        children = int(child_rate * self.species.shape[0])
+        parents = np.random.choice(self.species.shape[0], size = 2 * children, replace = False, p = self.accs / np.sum(self.accs))
+        dads = self.species[parents[0::2]]
+        moms = self.species[parents[1::2]]
         children = np.empty(shape = dads.shape, dtype = int)
         for i in range(dads.shape[0]):
-            det = np.nonzero(same[i])[0]
-            if diff[i].any():
-                und = np.random.choice(np.nonzero(diff[i])[0], size = dads.shape[1] - det.shape[0], replace = False)
-            else:
-                und = np.array([], dtype = int)
-            child = np.concatenate((det, und))
-            if child.shape[0] > children.shape[1]:
-                child = child[:children.shape[1]]
-            elif child.shape[0] < children.shape[1]:
-                temp = np.full(shape = x_train.shape[1], fill_value = 1.0)
-                temp[child] = 0.0
-                temp /= np.sum(temp)
-                add = np.random.choice(temp.shape[0], size = children.shape[1] - child.shape[0], replace = False, p = temp)
-                child = np.concatenate((child, add))
-            children[i] = child
-        new_species = np.concatenate((species, children))
-        new_accs = np.concatenate((accs, calc_accs(children)))
-        return new_species, new_accs'''
+            same = np.intersect1d(dads[i], moms[i], assume_unique = True)
+            diff = np.concatenate((np.setdiff1d(dads[i], same, assume_unique = True), np.setdiff1d(moms[i], same, assume_unique = True)))
+            children[i] = np.concatenate((same, np.random.choice(diff, size = diff.shape[0] / 2, replace = False)))
+        self.species = np.concatenate((self.species, children))
+        self.accs = np.concatenate((self.accs, self.calc_accs(children)))
+
+
+    def selection(self):
+        if 'child_rate' in self.params:
+            child_rate = self.params['child_rate']
+        else:
+            child_rate = 0.2
+        delete = int(child_rate * self.species.shape[0])
+        if not np.all(self.accs[:-1] <= self.accs[1:]):
+            order = np.argsort(self.accs)
+            self.accs = self.accs[order]
+            self.species = self.species[order]
+        self.species = self.species[delete:]
+        self.accs = self.accs[delete:]
+
+    def get_best_features(self):
+        return self.species[-1]
+
+
+    def get_history(self):
+        return self.max_accs, self.min_accs, self.avg_accs
+
+
+    def get_max_accs(self):
+        return self.max_accs
+
+
+    def get_min_accs(self):
+        return self.min_accs
+
+
+    def get_avg_accs(self):
+        return self.avg_accs
